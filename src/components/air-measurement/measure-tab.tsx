@@ -280,10 +280,14 @@ export function MeasureTab({
       );
 
       if (matchedEquip) {
-        const sysLimit = matchedEquip.pollutantLimits?.[pollutantName]
-          ? parseFloat(matchedEquip.pollutantLimits[pollutantName])
+        const facilityLimitRaw = matchedEquip.pollutantLimits?.[pollutantName];
+        const noLimit = facilityLimitRaw === "N/A";
+        const sysLimit = noLimit
+          ? limitInFile
+          : facilityLimitRaw
+          ? parseFloat(facilityLimitRaw)
           : limitInFile;
-        const isExceeded = concentration > sysLimit;
+        const isExceeded = noLimit ? false : concentration > sysLimit;
         const isPollutantRegistered =
           matchedEquip.pollutants?.includes(pollutantName);
 
@@ -327,7 +331,7 @@ export function MeasureTab({
           gasFlow,
           pollutantCoeff,
           convertedConc,
-          limitApplicable,
+          limitApplicable: noLimit ? "N" : limitApplicable,
           hourlyEmission,
           environmentEngineer,
           engineerOpinion,

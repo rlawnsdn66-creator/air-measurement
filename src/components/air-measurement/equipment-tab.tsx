@@ -13,6 +13,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -630,10 +631,28 @@ function AssetModal({
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-xs">허용 기준 (Limit)</Label>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">허용 기준 (Limit)</Label>
+                        <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none">
+                          <Checkbox
+                            checked={editingAsset.pollutantLimits?.[p] === "N/A"}
+                            onCheckedChange={(checked) =>
+                              setEditingAsset({
+                                ...editingAsset,
+                                pollutantLimits: {
+                                  ...(editingAsset.pollutantLimits || {}),
+                                  [p]: checked ? "N/A" : "",
+                                },
+                              })
+                            }
+                            className="h-3.5 w-3.5"
+                          />
+                          기준 없음
+                        </label>
+                      </div>
                       <Input
                         type="number"
-                        value={editingAsset.pollutantLimits?.[p] || ""}
+                        value={editingAsset.pollutantLimits?.[p] === "N/A" ? "" : (editingAsset.pollutantLimits?.[p] || "")}
                         onChange={(e) =>
                           setEditingAsset({
                             ...editingAsset,
@@ -643,7 +662,9 @@ function AssetModal({
                             },
                           })
                         }
-                        placeholder="0.0"
+                        disabled={editingAsset.pollutantLimits?.[p] === "N/A"}
+                        className={editingAsset.pollutantLimits?.[p] === "N/A" ? "opacity-50" : ""}
+                        placeholder={editingAsset.pollutantLimits?.[p] === "N/A" ? "기준 없음" : "0.0"}
                       />
                     </div>
                     <div className="space-y-1">
