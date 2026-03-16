@@ -489,10 +489,6 @@ export function MeasureTab({
       "배출구 일련번호": row.facility.serialNumber,
       "허가증상 배출구번호": row.facility.permitNumber || "",
       배출구명: row.facility.name,
-      배출구유형: row.facility.outletType || "",
-      배출구종별: row.facility.outletCategory || "",
-      "배출구높이(m)": row.facility.outletHeight || "",
-      "배출구단면적(㎡)": row.facility.outletArea || "",
       측정일자: row.date,
       "배출가스속도(m/s)": row.gasVelocity ?? "",
       "배출가스온도(°C)": row.gasTemperature ?? "",
@@ -749,21 +745,6 @@ export function MeasureTab({
                   배출구명
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
-                  배출구유형
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
-                  배출구종별
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
-                  배출구높이
-                  <br />
-                  (m)
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
-                  배출구단면
-                  <br />적(㎡)
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
                   측정일자
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
@@ -794,7 +775,7 @@ export function MeasureTab({
               {filteredData.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={18}
+                    colSpan={14}
                     className="h-32 text-center text-muted-foreground"
                   >
                     조회된 데이터가 없습니다
@@ -842,18 +823,6 @@ export function MeasureTab({
                       </TableCell>
                       <TableCell className="text-center text-xs max-w-[160px] truncate">
                         {row.facility.name}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {row.facility.outletType || "-"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {row.facility.outletCategory || "-"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {row.facility.outletHeight || "-"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {row.facility.outletArea || "-"}
                       </TableCell>
                       <TableCell className="text-center whitespace-nowrap">
                         {row.date}
