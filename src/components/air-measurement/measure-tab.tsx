@@ -207,11 +207,12 @@ export function MeasureTab({
   const handleSaveEdit = () => {
     if (!editingMeasurement) return;
     const value = parseFloat(String(editForm.value ?? editingMeasurement.value));
-    const limit = editingMeasurement.limit;
+    const limit = parseFloat(String(editForm.limit ?? editingMeasurement.limit));
     const updated: AirSelfMeasurement = {
       ...editingMeasurement,
       ...editForm,
       value,
+      limit,
       status: value > limit ? "Fail" : "Pass",
     };
     onUpdateMeasurement(updated);
@@ -992,7 +993,7 @@ export function MeasureTab({
             <div className="space-y-4">
               <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">
                 <p><span className="text-muted-foreground">시설:</span> {facilities.find(f => f.id === editingMeasurement.facilityId)?.name} (S/N: {facilities.find(f => f.id === editingMeasurement.facilityId)?.serialNumber})</p>
-                <p><span className="text-muted-foreground">오염물질:</span> {editingMeasurement.pollutant} | <span className="text-muted-foreground">법적기준:</span> {editingMeasurement.limit} {editingMeasurement.unit}</p>
+                <p><span className="text-muted-foreground">오염물질:</span> {editingMeasurement.pollutant}</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -1002,6 +1003,14 @@ export function MeasureTab({
                 <div className="space-y-1.5">
                   <Label className="text-xs">측정값 ({editingMeasurement.unit})</Label>
                   <Input type="number" value={editForm.value ?? ""} onChange={(e) => setEditForm(f => ({ ...f, value: parseFloat(e.target.value) }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">법적기준 ({editingMeasurement.unit})</Label>
+                  <Input type="number" value={editForm.limit ?? ""} onChange={(e) => setEditForm(f => ({ ...f, limit: parseFloat(e.target.value) }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">배출가스유량 (S㎥/min)</Label>
+                  <Input type="number" value={editForm.gasFlow ?? ""} onChange={(e) => setEditForm(f => ({ ...f, gasFlow: parseFloat(e.target.value) || undefined }))} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">배출가스속도 (m/s)</Label>
