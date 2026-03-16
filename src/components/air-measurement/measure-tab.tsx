@@ -208,12 +208,13 @@ export function MeasureTab({
     if (!editingMeasurement) return;
     const value = parseFloat(String(editForm.value ?? editingMeasurement.value));
     const limit = parseFloat(String(editForm.limit ?? editingMeasurement.limit));
+    const noLimit = editForm.limitApplicable === "N";
     const updated: AirSelfMeasurement = {
       ...editingMeasurement,
       ...editForm,
       value,
       limit,
-      status: value > limit ? "Fail" : "Pass",
+      status: noLimit ? "Pass" : value > limit ? "Fail" : "Pass",
     };
     onUpdateMeasurement(updated);
     setEditingMeasurement(null);
@@ -1005,8 +1006,26 @@ export function MeasureTab({
                   <Input type="number" value={editForm.value ?? ""} onChange={(e) => setEditForm(f => ({ ...f, value: parseFloat(e.target.value) }))} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">법적기준 ({editingMeasurement.unit})</Label>
-                  <Input type="number" value={editForm.limit ?? ""} onChange={(e) => setEditForm(f => ({ ...f, limit: parseFloat(e.target.value) }))} />
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">법적기준 ({editingMeasurement.unit})</Label>
+                    <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none">
+                      <Checkbox
+                        checked={editForm.limitApplicable === "N"}
+                        onCheckedChange={(checked) =>
+                          setEditForm(f => ({ ...f, limitApplicable: checked ? "N" : "Y" }))
+                        }
+                        className="h-3.5 w-3.5"
+                      />
+                      기준 없음
+                    </label>
+                  </div>
+                  <Input
+                    type="number"
+                    value={editForm.limit ?? ""}
+                    onChange={(e) => setEditForm(f => ({ ...f, limit: parseFloat(e.target.value) }))}
+                    disabled={editForm.limitApplicable === "N"}
+                    className={editForm.limitApplicable === "N" ? "opacity-50" : ""}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">배출가스유량 (S㎥/min)</Label>
