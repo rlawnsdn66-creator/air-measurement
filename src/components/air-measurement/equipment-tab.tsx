@@ -551,29 +551,6 @@ function AssetModal({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>기본 측정 주기</Label>
-                <Select
-                  value={editingAsset.measurementCycle || "분기 1회"}
-                  onValueChange={(v) =>
-                    v && setEditingAsset({
-                      ...editingAsset,
-                      measurementCycle: v,
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MEASUREMENT_CYCLES.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             <div className="space-y-2">
               <Label>모델</Label>
