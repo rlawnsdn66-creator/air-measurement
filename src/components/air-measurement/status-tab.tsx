@@ -116,17 +116,49 @@ export function StatusTab({
   const [cycleStatusFilter, setCycleStatusFilter] = useState("전체");
   const [cycleTableOpen, setCycleTableOpen] = useState(true);
 
-  const cycleDays: Record<string, number> = {
-    "매주": 7,
-    "매월": 30,
-    "분기 1회": 90,
-    "반기 1회": 180,
-    "연 1회": 365,
-  };
-
   const cycleRows = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
+    // 주기별 기간 경계 계산 (date가 속하는 기간의 시작/끝)
+    function getPeriodBoundaries(cycle: string, date: Date): { start: Date; end: Date } {
+      const y = date.getFullYear();
+      const m = date.getMonth();
+      switch (cycle) {
+        case "매주": {
+          const dow = date.getDay();
+          const start = new Date(date);
+          start.setDate(date.getDate() - (dow === 0 ? 6 : dow - 1));
+          start.setHours(0, 0, 0, 0);
+          const end = new Date(start);
+          end.setDate(start.getDate() + 6);
+          return { start, end };
+        }
+        case "매월":
+          return { start: new Date(y, m, 1), end: new Date(y, m + 1, 0) };
+        case "분기 1회": {
+          const q = Math.floor(m / 3);
+          return { start: new Date(y, q * 3, 1), end: new Date(y, q * 3 + 3, 0) };
+        }
+        case "반기 1회":
+          return m < 6
+            ? { start: new Date(y, 0, 1), end: new Date(y, 5, 30) }
+            : { start: new Date(y, 6, 1), end: new Date(y, 11, 31) };
+        case "연 1회":
+        default:
+          return { start: new Date(y, 0, 1), end: new Date(y, 11, 31) };
+      }
+    }
+
+    // 주기별 임박 기준일수
+    function getImminentDays(cycle: string): number {
+      switch (cycle) {
+        case "매주": return 2;
+        case "매월": return 7;
+        default: return 30;
+      }
+    }
+
     const rows: {
       facilityId: string; facilityName: string; serialNumber: string;
       pollutant: string; cycle: string; lastDate: string | null;
@@ -137,33 +169,53 @@ export function StatusTab({
     facilities.forEach((f) => {
       (f.pollutants || []).forEach((pollutant) => {
         const cycle = f.pollutantCycles?.[pollutant] || f.measurementCycle;
-        const days = cycleDays[cycle];
-
-        // 해당 시설+오염물질의 가장 최근 측정일
-        const lastMs = safeMs
+        const pollutantMs = safeMs
           .filter((m) => m.facilityId === f.id && m.pollutant === pollutant)
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const lastMs = pollutantMs[0] ?? null;
+
+        const isMeasuredIn = (start: Date, end: Date) =>
+          pollutantMs.some((m) => {
+            const d = new Date(m.date);
+            d.setHours(0, 0, 0, 0);
+            return d >= start && d <= end;
+          });
+
+        const { start: currStart, end: currEnd } = getPeriodBoundaries(cycle, today);
 
         if (!lastMs) {
-          rows.push({ facilityId: f.id, facilityName: f.name, serialNumber: f.serialNumber, pollutant, cycle, lastDate: null, nextDate: null, remainingDays: null, status: "미측정" });
+          // 한 번도 측정 안 함
+          const remaining = Math.ceil((currEnd.getTime() - today.getTime()) / 86400000);
+          rows.push({ facilityId: f.id, facilityName: f.name, serialNumber: f.serialNumber, pollutant, cycle, lastDate: null, nextDate: currEnd.toISOString().split("T")[0], remainingDays: remaining, status: "미측정" });
           return;
         }
 
-        const lastDate = new Date(lastMs.date);
-        lastDate.setHours(0, 0, 0, 0);
-        const nextDate = new Date(lastDate.getTime() + (days || 365) * 86400000);
-        const remaining = Math.ceil((nextDate.getTime() - today.getTime()) / 86400000);
+        if (isMeasuredIn(currStart, currEnd)) {
+          // 현재 기간 측정 완료 → 다음 기간 마감일 표시
+          const dayAfter = new Date(currEnd);
+          dayAfter.setDate(dayAfter.getDate() + 1);
+          const { end: nextEnd } = getPeriodBoundaries(cycle, dayAfter);
+          const remaining = Math.ceil((nextEnd.getTime() - today.getTime()) / 86400000);
+          rows.push({ facilityId: f.id, facilityName: f.name, serialNumber: f.serialNumber, pollutant, cycle, lastDate: lastMs.date, nextDate: nextEnd.toISOString().split("T")[0], remainingDays: remaining, status: "정상" });
+          return;
+        }
 
-        let status: "초과" | "임박" | "정상" = "정상";
-        if (remaining < 0) status = "초과";
-        else if (remaining <= 30) status = "임박";
+        // 현재 기간 미측정 — 이전 기간 확인
+        const dayBefore = new Date(currStart);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        const { start: prevStart, end: prevEnd } = getPeriodBoundaries(cycle, dayBefore);
+        const prevMeasured = isMeasuredIn(prevStart, prevEnd);
 
-        rows.push({
-          facilityId: f.id, facilityName: f.name, serialNumber: f.serialNumber,
-          pollutant, cycle, lastDate: lastMs.date,
-          nextDate: nextDate.toISOString().split("T")[0],
-          remainingDays: remaining, status,
-        });
+        if (!prevMeasured) {
+          // 이전 기간도 미측정 → 초과 (이전 기간 마감일 기준 잔여일 = 음수)
+          const overdue = Math.ceil((prevEnd.getTime() - today.getTime()) / 86400000);
+          rows.push({ facilityId: f.id, facilityName: f.name, serialNumber: f.serialNumber, pollutant, cycle, lastDate: lastMs.date, nextDate: prevEnd.toISOString().split("T")[0], remainingDays: overdue, status: "초과" });
+        } else {
+          // 이전 기간 측정 완료, 현재 기간 미측정 → 임박 or 정상
+          const remaining = Math.ceil((currEnd.getTime() - today.getTime()) / 86400000);
+          const status = remaining <= getImminentDays(cycle) ? "임박" : "정상";
+          rows.push({ facilityId: f.id, facilityName: f.name, serialNumber: f.serialNumber, pollutant, cycle, lastDate: lastMs.date, nextDate: currEnd.toISOString().split("T")[0], remainingDays: remaining, status });
+        }
       });
     });
     return rows;
