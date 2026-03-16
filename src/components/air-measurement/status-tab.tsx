@@ -380,13 +380,18 @@ export function StatusTab({
                           <LabelList
                             dataKey={pollutant}
                             position="top"
-                            offset={10}
+                            offset={8}
+                            formatter={(v: unknown) => (v !== undefined && v !== null ? String(v) : "")}
                             style={{
                               fill:
                                 POLLUTANT_COLORS[pollutant] ||
                                 POLLUTANT_COLORS.Default,
-                              fontSize: 10,
+                              fontSize: 11,
                               fontWeight: "bold",
+                              paintOrder: "stroke",
+                              stroke: "#fff",
+                              strokeWidth: 3,
+                              strokeLinejoin: "round" as const,
                             }}
                           />
                         </Line>
