@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Activity, History } from "lucide-react";
+import { Activity, History, CalendarClock, ChevronDown, ChevronUp } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -17,6 +17,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table, TableBody, TableCell, TableHead,
+  TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
+  Select, SelectContent, SelectItem,
+  SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { FacilitySelector } from "./facility-selector";
 import type { AirFacility, AirSelfMeasurement } from "@/lib/air-measurement-data";
 import { POLLUTANT_COLORS } from "@/lib/air-measurement-data";
@@ -103,6 +111,75 @@ export function StatusTab({
         ),
     [safeMs, selectedId]
   );
+
+  // ===== 측정 주기 관리 =====
+  const [cycleStatusFilter, setCycleStatusFilter] = useState("전체");
+  const [cycleTableOpen, setCycleTableOpen] = useState(true);
+
+  const cycleDays: Record<string, number> = {
+    "매주": 7,
+    "매월": 30,
+    "분기 1회": 90,
+    "반기 1회": 180,
+    "연 1회": 365,
+  };
+
+  const cycleRows = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const rows: {
+      facilityId: string; facilityName: string; serialNumber: string;
+      pollutant: string; cycle: string; lastDate: string | null;
+      nextDate: string | null; remainingDays: number | null;
+      status: "초과" | "임박" | "정상" | "미측정";
+    }[] = [];
+
+    facilities.forEach((f) => {
+      (f.pollutants || []).forEach((pollutant) => {
+        const cycle = f.pollutantCycles?.[pollutant] || f.measurementCycle;
+        const days = cycleDays[cycle];
+
+        // 해당 시설+오염물질의 가장 최근 측정일
+        const lastMs = safeMs
+          .filter((m) => m.facilityId === f.id && m.pollutant === pollutant)
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
+        if (!lastMs) {
+          rows.push({ facilityId: f.id, facilityName: f.name, serialNumber: f.serialNumber, pollutant, cycle, lastDate: null, nextDate: null, remainingDays: null, status: "미측정" });
+          return;
+        }
+
+        const lastDate = new Date(lastMs.date);
+        lastDate.setHours(0, 0, 0, 0);
+        const nextDate = new Date(lastDate.getTime() + (days || 365) * 86400000);
+        const remaining = Math.ceil((nextDate.getTime() - today.getTime()) / 86400000);
+
+        let status: "초과" | "임박" | "정상" = "정상";
+        if (remaining < 0) status = "초과";
+        else if (remaining <= 30) status = "임박";
+
+        rows.push({
+          facilityId: f.id, facilityName: f.name, serialNumber: f.serialNumber,
+          pollutant, cycle, lastDate: lastMs.date,
+          nextDate: nextDate.toISOString().split("T")[0],
+          remainingDays: remaining, status,
+        });
+      });
+    });
+    return rows;
+  }, [facilities, safeMs]);
+
+  const filteredCycleRows = useMemo(() => {
+    if (cycleStatusFilter === "전체") return cycleRows;
+    return cycleRows.filter((r) => r.status === cycleStatusFilter);
+  }, [cycleRows, cycleStatusFilter]);
+
+  const cycleSummary = useMemo(() => ({
+    초과: cycleRows.filter((r) => r.status === "초과").length,
+    임박: cycleRows.filter((r) => r.status === "임박").length,
+    정상: cycleRows.filter((r) => r.status === "정상").length,
+    미측정: cycleRows.filter((r) => r.status === "미측정").length,
+  }), [cycleRows]);
 
   return (
     <div className="space-y-6">
@@ -314,6 +391,142 @@ export function StatusTab({
           </CardContent>
         </Card>
       </div>
+
+      {/* 측정 주기 관리 테이블 */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-primary" />
+              측정 주기 관리
+              <button
+                className="ml-1 text-muted-foreground hover:text-foreground"
+                onClick={() => setCycleTableOpen((v) => !v)}
+              >
+                {cycleTableOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+            </CardTitle>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* 요약 배지 */}
+              <span
+                className="cursor-pointer text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-semibold"
+                onClick={() => setCycleStatusFilter(cycleStatusFilter === "초과" ? "전체" : "초과")}
+              >
+                초과 {cycleSummary.초과}
+              </span>
+              <span
+                className="cursor-pointer text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 font-semibold"
+                onClick={() => setCycleStatusFilter(cycleStatusFilter === "임박" ? "전체" : "임박")}
+              >
+                임박 {cycleSummary.임박}
+              </span>
+              <span
+                className="cursor-pointer text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-semibold"
+                onClick={() => setCycleStatusFilter(cycleStatusFilter === "정상" ? "전체" : "정상")}
+              >
+                정상 {cycleSummary.정상}
+              </span>
+              <span
+                className="cursor-pointer text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 font-semibold"
+                onClick={() => setCycleStatusFilter(cycleStatusFilter === "미측정" ? "전체" : "미측정")}
+              >
+                미측정 {cycleSummary.미측정}
+              </span>
+              <Select value={cycleStatusFilter} onValueChange={(v) => setCycleStatusFilter(v ?? "전체")}>
+                <SelectTrigger className="h-8 w-28 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="전체">전체</SelectItem>
+                  <SelectItem value="초과">초과</SelectItem>
+                  <SelectItem value="임박">임박</SelectItem>
+                  <SelectItem value="정상">정상</SelectItem>
+                  <SelectItem value="미측정">미측정</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        {cycleTableOpen && (
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="text-xs">시설명</TableHead>
+                    <TableHead className="text-xs">S/N</TableHead>
+                    <TableHead className="text-xs">오염물질</TableHead>
+                    <TableHead className="text-xs">측정주기</TableHead>
+                    <TableHead className="text-xs">최근측정일</TableHead>
+                    <TableHead className="text-xs">다음예정일</TableHead>
+                    <TableHead className="text-xs text-center">잔여일</TableHead>
+                    <TableHead className="text-xs text-center">상태</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCycleRows.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-20 text-center text-muted-foreground text-sm">
+                        데이터가 없습니다
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredCycleRows.map((row, idx) => (
+                      <TableRow
+                        key={`${row.facilityId}-${row.pollutant}-${idx}`}
+                        className={cn(
+                          row.status === "초과" && "bg-red-50",
+                          row.status === "임박" && "bg-orange-50"
+                        )}
+                      >
+                        <TableCell className="text-xs font-medium">{row.facilityName}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{row.serialNumber}</TableCell>
+                        <TableCell className="text-xs">{row.pollutant}</TableCell>
+                        <TableCell className="text-xs">{row.cycle}</TableCell>
+                        <TableCell className="text-xs">
+                          {row.lastDate ?? <span className="text-muted-foreground">-</span>}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {row.nextDate ?? <span className="text-muted-foreground">-</span>}
+                        </TableCell>
+                        <TableCell className="text-xs text-center">
+                          {row.remainingDays === null ? (
+                            <span className="text-muted-foreground">-</span>
+                          ) : (
+                            <span
+                              className={cn(
+                                "font-semibold",
+                                row.remainingDays < 0 && "text-red-600",
+                                row.remainingDays >= 0 && row.remainingDays <= 30 && "text-orange-600",
+                                row.remainingDays > 30 && "text-green-600"
+                              )}
+                            >
+                              {row.remainingDays > 0 ? `D-${row.remainingDays}` : row.remainingDays === 0 ? "D-Day" : `D+${Math.abs(row.remainingDays)}`}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge
+                            className={cn(
+                              "text-[10px] px-1.5 py-0.5",
+                              row.status === "초과" && "bg-red-100 text-red-700 hover:bg-red-100",
+                              row.status === "임박" && "bg-orange-100 text-orange-700 hover:bg-orange-100",
+                              row.status === "정상" && "bg-green-100 text-green-700 hover:bg-green-100",
+                              row.status === "미측정" && "bg-gray-100 text-gray-600 hover:bg-gray-100"
+                            )}
+                          >
+                            {row.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        )}
+      </Card>
     </div>
   );
 }
