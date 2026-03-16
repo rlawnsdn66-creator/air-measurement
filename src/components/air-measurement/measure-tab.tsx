@@ -758,6 +758,11 @@ export function MeasureTab({
                   온도(°C)
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
+                  배출가스
+                  <br />
+                  유량(S㎥/min)
+                </TableHead>
+                <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
                   오염물질
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
@@ -775,7 +780,7 @@ export function MeasureTab({
               {filteredData.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={14}
+                    colSpan={15}
                     className="h-32 text-center text-muted-foreground"
                   >
                     조회된 데이터가 없습니다
@@ -832,6 +837,9 @@ export function MeasureTab({
                       </TableCell>
                       <TableCell className="text-center">
                         {row.gasTemperature ?? "-"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {row.gasFlow ?? "-"}
                       </TableCell>
                       <TableCell className="text-center font-medium">
                         {row.pollutant}
