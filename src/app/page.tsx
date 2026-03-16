@@ -93,7 +93,7 @@ export default function AirMeasurementPage() {
           </TabsTrigger>
           <TabsTrigger value="equipment" className="flex items-center gap-1.5">
             <Wrench className="h-4 w-4" />
-            <span className="hidden sm:inline">자산 이력 관리</span>
+            <span className="hidden sm:inline">자가측정 시설 관리</span>
             <span className="sm:hidden">자산</span>
           </TabsTrigger>
         </TabsList>
