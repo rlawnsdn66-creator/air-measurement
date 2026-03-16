@@ -3,22 +3,18 @@
 import { useState } from "react";
 import {
   Wrench,
-  ArrowLeft,
-  ArrowRight,
   Edit3,
   Plus,
   Save,
-  X,
-  History,
   Settings2,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -33,65 +29,48 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import type {
-  AirFacility,
-  MaintenanceLog,
-} from "@/lib/air-measurement-data";
+import type { AirFacility } from "@/lib/air-measurement-data";
 import {
   POLLUTANT_OPTIONS,
   MEASUREMENT_CYCLES,
-  MAINTENANCE_TYPES,
   FACILITY_TYPES,
 } from "@/lib/air-measurement-data";
-import { cn } from "@/lib/utils";
 
 interface EquipmentTabProps {
   facilities: AirFacility[];
   onUpdateFacilities: (facilities: AirFacility[]) => void;
 }
 
-export function EquipmentTab({
-  facilities,
-  onUpdateFacilities,
-}: EquipmentTabProps) {
-  const [selectedDetail, setSelectedDetail] = useState<AirFacility | null>(
-    null
-  );
+export function EquipmentTab({ facilities, onUpdateFacilities }: EquipmentTabProps) {
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
-  const [editingAsset, setEditingAsset] = useState<Partial<AirFacility> | null>(
-    null
-  );
-  const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
-  const [maintenanceForm, setMaintenanceForm] = useState<
-    Partial<MaintenanceLog>
-  >({
-    date: new Date().toISOString().split("T")[0],
-    type: "정기점검",
-    description: "",
-    technician: "",
-    cost: 0,
-  });
+  const [editingAsset, setEditingAsset] = useState<Partial<AirFacility> | null>(null);
+  const [isNew, setIsNew] = useState(false);
 
-  const handleOpenAssetModal = (asset?: AirFacility) => {
-    setEditingAsset(
-      asset || {
-        id: `EQ-ENV-${(facilities.length + 1).toString().padStart(3, "0")}`,
-        serialNumber: "",
-        name: "",
-        type: "집진시설",
-        model: "",
-        location: "",
-        installDate: new Date().toISOString().split("T")[0],
-        status: "정상",
-        lastMaintenance: new Date().toISOString().split("T")[0],
-        nextMaintenance: "",
-        pollutants: [],
-        pollutantLimits: {},
-        pollutantCycles: {},
-        measurementCycle: "분기 1회",
-        logs: [],
-      }
-    );
+  const handleOpenCard = (asset: AirFacility) => {
+    setEditingAsset({ ...asset });
+    setIsNew(false);
+    setIsAssetModalOpen(true);
+  };
+
+  const handleOpenNew = () => {
+    setEditingAsset({
+      id: `EQ-ENV-${(facilities.length + 1).toString().padStart(3, "0")}`,
+      serialNumber: "",
+      name: "",
+      type: "집진시설",
+      model: "",
+      location: "",
+      installDate: new Date().toISOString().split("T")[0],
+      status: "정상",
+      lastMaintenance: new Date().toISOString().split("T")[0],
+      nextMaintenance: "",
+      pollutants: [],
+      pollutantLimits: {},
+      pollutantCycles: {},
+      measurementCycle: "분기 1회",
+      logs: [],
+    });
+    setIsNew(true);
     setIsAssetModalOpen(true);
   };
 
@@ -106,44 +85,8 @@ export function EquipmentTab({
       ? facilities.map((e) => (e.id === updated.id ? updated : e))
       : [...facilities, updated];
     onUpdateFacilities(newFacilities);
-    if (selectedDetail?.id === updated.id) {
-      setSelectedDetail(updated);
-    }
     setIsAssetModalOpen(false);
-    toast.success("자산 정보가 저장되었습니다");
-  };
-
-  const handleSaveMaintenanceRecord = () => {
-    if (!selectedDetail || !maintenanceForm.description) {
-      toast.error("점검 내용을 입력해주세요");
-      return;
-    }
-    const newLog: MaintenanceLog = {
-      id: `LOG-${Date.now()}`,
-      date: maintenanceForm.date || new Date().toISOString().split("T")[0],
-      type: (maintenanceForm.type as MaintenanceLog["type"]) || "정기점검",
-      description: maintenanceForm.description,
-      technician: maintenanceForm.technician || "",
-      cost: Number(maintenanceForm.cost) || 0,
-    };
-    const updatedAsset: AirFacility = {
-      ...selectedDetail,
-      logs: [newLog, ...selectedDetail.logs],
-      lastMaintenance: newLog.date,
-    };
-    onUpdateFacilities(
-      facilities.map((e) => (e.id === updatedAsset.id ? updatedAsset : e))
-    );
-    setSelectedDetail(updatedAsset);
-    setIsMaintenanceModalOpen(false);
-    setMaintenanceForm({
-      date: new Date().toISOString().split("T")[0],
-      type: "정기점검",
-      description: "",
-      technician: "",
-      cost: 0,
-    });
-    toast.success("점검 이력이 저장되었습니다");
+    toast.success("저장되었습니다");
   };
 
   const togglePollutant = (p: string) => {
@@ -155,254 +98,6 @@ export function EquipmentTab({
     setEditingAsset({ ...editingAsset, pollutants: next });
   };
 
-  // 상세 보기
-  if (selectedDetail) {
-    return (
-      <div className="space-y-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setSelectedDetail(null)}
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          전체 목록
-        </Button>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 좌측: 자산 정보 */}
-          <div className="space-y-4">
-            <Card>
-              <div className="bg-slate-900 text-white p-6 rounded-t-lg">
-                <div className="flex justify-between items-start mb-3">
-                  <Badge className="bg-primary text-primary-foreground">
-                    {selectedDetail.id}
-                  </Badge>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="text-slate-400 hover:text-white"
-                    onClick={() => handleOpenAssetModal(selectedDetail)}
-                  >
-                    <Edit3 className="h-4 w-4" />
-                  </Button>
-                </div>
-                <h2 className="text-xl font-bold mb-1">
-                  {selectedDetail.name}
-                </h2>
-                <p className="text-xs text-slate-400">
-                  S/N: {selectedDetail.serialNumber || "미지정"}
-                </p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {selectedDetail.model} | {selectedDetail.location}
-                </p>
-              </div>
-              <CardContent className="p-6 space-y-4">
-                <h4 className="text-xs font-semibold text-muted-foreground">
-                  법적기준 및 측정주기
-                </h4>
-                <div className="space-y-2">
-                  {selectedDetail.pollutants?.map((p) => (
-                    <div
-                      key={p}
-                      className="p-3 bg-muted/50 rounded-lg space-y-2"
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">{p}</span>
-                        <span className="text-sm font-semibold text-primary">
-                          {selectedDetail.pollutantLimits?.[p] || "-"}
-                          <span className="text-xs text-muted-foreground ml-1">
-                            Limit
-                          </span>
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center border-t pt-2">
-                        <span className="text-[10px] text-muted-foreground">
-                          측정 주기
-                        </span>
-                        <span className="text-xs font-medium">
-                          {selectedDetail.pollutantCycles?.[p] ||
-                            selectedDetail.measurementCycle}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* 우측: 점검 이력 */}
-          <div className="lg:col-span-2">
-            <Card className="h-full">
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle className="flex items-center gap-2">
-                    <History className="h-5 w-5 text-primary" />
-                    점검 이력 카드
-                  </CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={() => setIsMaintenanceModalOpen(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    점검 이력 추가
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {selectedDetail.logs.length > 0 ? (
-                  <div className="space-y-3">
-                    {selectedDetail.logs.map((log) => (
-                      <div
-                        key={log.id}
-                        className="p-4 bg-muted/50 rounded-lg flex justify-between items-center border hover:border-primary/30 transition-colors"
-                      >
-                        <div>
-                          <p className="text-[10px] text-muted-foreground mb-1">
-                            {log.date} | {log.type}
-                          </p>
-                          <h4 className="font-semibold">{log.description}</h4>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            담당: {log.technician}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-primary">
-                            ₩{log.cost.toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-40 text-muted-foreground border-2 border-dashed rounded-lg text-sm">
-                    등록된 점검 이력이 없습니다.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* 점검 이력 추가 모달 */}
-        <Dialog
-          open={isMaintenanceModalOpen}
-          onOpenChange={setIsMaintenanceModalOpen}
-        >
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5 text-primary" />
-                점검 이력 추가
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>점검 일자</Label>
-                  <Input
-                    type="date"
-                    value={maintenanceForm.date}
-                    onChange={(e) =>
-                      setMaintenanceForm({
-                        ...maintenanceForm,
-                        date: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>점검 유형</Label>
-                  <Select
-                    value={maintenanceForm.type}
-                    onValueChange={(v) =>
-                      v && setMaintenanceForm({ ...maintenanceForm, type: v as MaintenanceLog["type"] })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MAINTENANCE_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>점검 내용 상세</Label>
-                <Textarea
-                  rows={3}
-                  value={maintenanceForm.description}
-                  onChange={(e) =>
-                    setMaintenanceForm({
-                      ...maintenanceForm,
-                      description: e.target.value,
-                    })
-                  }
-                  placeholder="점검 및 수리 내용을 기술하세요."
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>담당 기술자</Label>
-                  <Input
-                    value={maintenanceForm.technician}
-                    onChange={(e) =>
-                      setMaintenanceForm({
-                        ...maintenanceForm,
-                        technician: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>소요 비용 (₩)</Label>
-                  <Input
-                    type="number"
-                    value={maintenanceForm.cost}
-                    onChange={(e) =>
-                      setMaintenanceForm({
-                        ...maintenanceForm,
-                        cost: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsMaintenanceModalOpen(false)}
-                >
-                  취소
-                </Button>
-                <Button onClick={handleSaveMaintenanceRecord}>
-                  <Save className="h-4 w-4 mr-1" />
-                  저장
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* 자산 수정 모달 (공유) */}
-        {isAssetModalOpen && editingAsset && (
-          <AssetModal
-            editingAsset={editingAsset}
-            setEditingAsset={setEditingAsset}
-            onSave={handleSaveAsset}
-            onClose={() => setIsAssetModalOpen(false)}
-            togglePollutant={togglePollutant}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // 목록 보기
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -410,7 +105,7 @@ export function EquipmentTab({
           <Card
             key={eq.id}
             className="cursor-pointer hover:shadow-md hover:border-primary/30 transition-all"
-            onClick={() => setSelectedDetail(eq)}
+            onClick={() => handleOpenCard(eq)}
           >
             <CardContent className="p-6">
               <div className="flex justify-between items-start mb-4">
@@ -420,11 +115,7 @@ export function EquipmentTab({
                 <div className="text-right space-y-1">
                   <Badge
                     variant={eq.status === "정상" ? "default" : "destructive"}
-                    className={
-                      eq.status === "정상"
-                        ? "bg-green-100 text-green-700 hover:bg-green-100"
-                        : ""
-                    }
+                    className={eq.status === "정상" ? "bg-green-100 text-green-700 hover:bg-green-100" : ""}
                   >
                     {eq.status}
                   </Badge>
@@ -437,26 +128,27 @@ export function EquipmentTab({
               <p className="text-xs text-muted-foreground mt-1">
                 {eq.location} | {eq.model}
               </p>
-              <div className="mt-4 pt-4 border-t flex justify-between items-end">
-                <div>
-                  <span className="text-[10px] text-muted-foreground block">
-                    최종 점검일
-                  </span>
-                  <span className="text-sm font-medium">
-                    {eq.lastMaintenance}
-                  </span>
+              <div className="mt-4 pt-4 border-t flex justify-between items-center">
+                <div className="flex flex-wrap gap-1">
+                  {(eq.pollutants || []).slice(0, 3).map((p) => (
+                    <Badge key={p} variant="secondary" className="text-[10px] px-1.5 py-0">
+                      {p}
+                    </Badge>
+                  ))}
+                  {(eq.pollutants || []).length > 3 && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                      +{(eq.pollutants || []).length - 3}
+                    </Badge>
+                  )}
                 </div>
-                <span className="text-xs text-primary font-medium flex items-center">
-                  상세 보기
-                  <ArrowRight className="h-3 w-3 ml-1" />
-                </span>
+                <Edit3 className="h-4 w-4 text-muted-foreground" />
               </div>
             </CardContent>
           </Card>
         ))}
         <Card
           className="cursor-pointer border-2 border-dashed hover:border-primary/50 transition-all flex items-center justify-center min-h-[200px]"
-          onClick={() => handleOpenAssetModal()}
+          onClick={handleOpenNew}
         >
           <CardContent className="flex flex-col items-center text-muted-foreground py-8">
             <Plus className="h-10 w-10 mb-2" />
@@ -465,7 +157,6 @@ export function EquipmentTab({
         </Card>
       </div>
 
-      {/* 자산 등록/수정 모달 */}
       {isAssetModalOpen && editingAsset && (
         <AssetModal
           editingAsset={editingAsset}
@@ -473,61 +164,80 @@ export function EquipmentTab({
           onSave={handleSaveAsset}
           onClose={() => setIsAssetModalOpen(false)}
           togglePollutant={togglePollutant}
+          startInEditMode={isNew}
         />
       )}
     </div>
   );
 }
 
-// 자산 등록/수정 모달 (공유 컴포넌트)
 function AssetModal({
   editingAsset,
   setEditingAsset,
   onSave,
   onClose,
   togglePollutant,
+  startInEditMode,
 }: {
   editingAsset: Partial<AirFacility>;
   setEditingAsset: (asset: Partial<AirFacility> | null) => void;
   onSave: () => void;
   onClose: () => void;
   togglePollutant: (p: string) => void;
+  startInEditMode: boolean;
 }) {
+  const [isEditing, setIsEditing] = useState(startInEditMode);
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Settings2 className="h-5 w-5 text-primary" />
-            자산 설정
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5 text-primary" />
+              {editingAsset.name || "새 설비"} 시설 정보
+            </DialogTitle>
+            <div className="flex items-center gap-2 pr-6">
+              {!isEditing ? (
+                <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+                  <Edit3 className="h-4 w-4 mr-1" />
+                  수정
+                </Button>
+              ) : (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => { setIsEditing(false); }}>
+                    <X className="h-4 w-4 mr-1" />
+                    취소
+                  </Button>
+                  <Button size="sm" onClick={onSave}>
+                    <Save className="h-4 w-4 mr-1" />
+                    저장
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
         </DialogHeader>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* 기본 정보 */}
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-muted-foreground border-b pb-2">
-              기본 정보
-            </h4>
+            <h4 className="text-sm font-semibold text-muted-foreground border-b pb-2">기본 정보</h4>
             <div className="space-y-2">
               <Label>방지시설 S/N (파일 매칭용)</Label>
               <Input
                 value={editingAsset.serialNumber || ""}
-                onChange={(e) =>
-                  setEditingAsset({
-                    ...editingAsset,
-                    serialNumber: e.target.value,
-                  })
-                }
+                onChange={(e) => setEditingAsset({ ...editingAsset, serialNumber: e.target.value })}
                 placeholder="예: 7, 9 등"
+                disabled={!isEditing}
               />
             </div>
             <div className="space-y-2">
               <Label>설비 명칭</Label>
               <Input
                 value={editingAsset.name || ""}
-                onChange={(e) =>
-                  setEditingAsset({ ...editingAsset, name: e.target.value })
-                }
+                onChange={(e) => setEditingAsset({ ...editingAsset, name: e.target.value })}
+                disabled={!isEditing}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -535,18 +245,15 @@ function AssetModal({
                 <Label>종류</Label>
                 <Select
                   value={editingAsset.type || "집진시설"}
-                  onValueChange={(v) =>
-                    v && setEditingAsset({ ...editingAsset, type: v })
-                  }
+                  onValueChange={(v) => v && setEditingAsset({ ...editingAsset, type: v })}
+                  disabled={!isEditing}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {FACILITY_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -556,42 +263,40 @@ function AssetModal({
               <Label>모델</Label>
               <Input
                 value={editingAsset.model || ""}
-                onChange={(e) =>
-                  setEditingAsset({ ...editingAsset, model: e.target.value })
-                }
+                onChange={(e) => setEditingAsset({ ...editingAsset, model: e.target.value })}
+                disabled={!isEditing}
               />
             </div>
             <div className="space-y-2">
               <Label>위치</Label>
               <Input
                 value={editingAsset.location || ""}
-                onChange={(e) =>
-                  setEditingAsset({
-                    ...editingAsset,
-                    location: e.target.value,
-                  })
-                }
+                onChange={(e) => setEditingAsset({ ...editingAsset, location: e.target.value })}
+                disabled={!isEditing}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>허가증상 배출구번호</Label>
+              <Input
+                value={editingAsset.permitNumber || ""}
+                onChange={(e) => setEditingAsset({ ...editingAsset, permitNumber: e.target.value })}
+                disabled={!isEditing}
               />
             </div>
           </div>
 
           {/* 오염물질 및 기준 */}
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-muted-foreground border-b pb-2">
-              오염물질 및 기준 관리
-            </h4>
+            <h4 className="text-sm font-semibold text-muted-foreground border-b pb-2">오염물질 및 기준 관리</h4>
             <div className="flex flex-wrap gap-2">
               {POLLUTANT_OPTIONS.map((p) => (
                 <Button
                   key={p}
                   size="sm"
-                  variant={
-                    editingAsset.pollutants?.includes(p)
-                      ? "default"
-                      : "outline"
-                  }
+                  variant={editingAsset.pollutants?.includes(p) ? "default" : "outline"}
                   className="h-7 text-xs"
-                  onClick={() => togglePollutant(p)}
+                  onClick={() => isEditing && togglePollutant(p)}
+                  disabled={!isEditing}
                 >
                   {p}
                 </Button>
@@ -599,10 +304,7 @@ function AssetModal({
             </div>
             <div className="space-y-3 bg-muted/30 p-4 rounded-lg max-h-[300px] overflow-y-auto">
               {editingAsset.pollutants?.map((p) => (
-                <div
-                  key={p}
-                  className="p-3 bg-card rounded-lg border space-y-3"
-                >
+                <div key={p} className="p-3 bg-card rounded-lg border space-y-3">
                   <div className="flex justify-between items-center border-b pb-2">
                     <span className="text-sm font-medium">{p}</span>
                   </div>
@@ -610,22 +312,24 @@ function AssetModal({
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <Label className="text-xs">허용 기준 (Limit)</Label>
-                        <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none">
-                          <Checkbox
-                            checked={editingAsset.pollutantLimits?.[p] === "N/A"}
-                            onCheckedChange={(checked) =>
-                              setEditingAsset({
-                                ...editingAsset,
-                                pollutantLimits: {
-                                  ...(editingAsset.pollutantLimits || {}),
-                                  [p]: checked ? "N/A" : "",
-                                },
-                              })
-                            }
-                            className="h-3.5 w-3.5"
-                          />
-                          기준 없음
-                        </label>
+                        {isEditing && (
+                          <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none">
+                            <Checkbox
+                              checked={editingAsset.pollutantLimits?.[p] === "N/A"}
+                              onCheckedChange={(checked) =>
+                                setEditingAsset({
+                                  ...editingAsset,
+                                  pollutantLimits: {
+                                    ...(editingAsset.pollutantLimits || {}),
+                                    [p]: checked ? "N/A" : "",
+                                  },
+                                })
+                              }
+                              className="h-3.5 w-3.5"
+                            />
+                            기준 없음
+                          </label>
+                        )}
                       </div>
                       <Input
                         type="number"
@@ -633,13 +337,10 @@ function AssetModal({
                         onChange={(e) =>
                           setEditingAsset({
                             ...editingAsset,
-                            pollutantLimits: {
-                              ...(editingAsset.pollutantLimits || {}),
-                              [p]: e.target.value,
-                            },
+                            pollutantLimits: { ...(editingAsset.pollutantLimits || {}), [p]: e.target.value },
                           })
                         }
-                        disabled={editingAsset.pollutantLimits?.[p] === "N/A"}
+                        disabled={!isEditing || editingAsset.pollutantLimits?.[p] === "N/A"}
                         className={editingAsset.pollutantLimits?.[p] === "N/A" ? "opacity-50" : ""}
                         placeholder={editingAsset.pollutantLimits?.[p] === "N/A" ? "기준 없음" : "0.0"}
                       />
@@ -647,29 +348,21 @@ function AssetModal({
                     <div className="space-y-1">
                       <Label className="text-xs">측정 주기</Label>
                       <Select
-                        value={
-                          editingAsset.pollutantCycles?.[p] ||
-                          editingAsset.measurementCycle ||
-                          "분기 1회"
-                        }
+                        value={editingAsset.pollutantCycles?.[p] || editingAsset.measurementCycle || "분기 1회"}
                         onValueChange={(v) =>
                           v && setEditingAsset({
                             ...editingAsset,
-                            pollutantCycles: {
-                              ...(editingAsset.pollutantCycles || {}),
-                              [p]: v,
-                            },
+                            pollutantCycles: { ...(editingAsset.pollutantCycles || {}), [p]: v },
                           })
                         }
+                        disabled={!isEditing}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           {MEASUREMENT_CYCLES.map((c) => (
-                            <SelectItem key={c} value={c}>
-                              {c}
-                            </SelectItem>
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -677,17 +370,12 @@ function AssetModal({
                   </div>
                 </div>
               ))}
-              {(!editingAsset.pollutants ||
-                editingAsset.pollutants.length === 0) && (
+              {(!editingAsset.pollutants || editingAsset.pollutants.length === 0) && (
                 <p className="text-center text-sm text-muted-foreground py-4">
-                  위에서 오염물질을 선택해주세요
+                  {isEditing ? "위에서 오염물질을 선택해주세요" : "등록된 오염물질이 없습니다"}
                 </p>
               )}
             </div>
-            <Button onClick={onSave} className="w-full">
-              <Save className="h-4 w-4 mr-1" />
-              자산 정보 저장
-            </Button>
           </div>
         </div>
       </DialogContent>
