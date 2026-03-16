@@ -505,8 +505,8 @@ export function StatusTab({
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40">
-                    <TableHead className="text-xs">시설명</TableHead>
                     <TableHead className="text-xs">S/N</TableHead>
+                    <TableHead className="text-xs">시설명</TableHead>
                     <TableHead className="text-xs">오염물질</TableHead>
                     <TableHead className="text-xs">측정주기</TableHead>
                     <TableHead className="text-xs">최근측정일</TableHead>
@@ -531,8 +531,8 @@ export function StatusTab({
                           row.status === "임박" && "bg-orange-50"
                         )}
                       >
-                        <TableCell className="text-xs font-medium">{row.facilityName}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{row.serialNumber}</TableCell>
+                        <TableCell className="text-xs font-medium">{row.facilityName}</TableCell>
                         <TableCell className="text-xs">{row.pollutant}</TableCell>
                         <TableCell className="text-xs">{row.cycle}</TableCell>
                         <TableCell className="text-xs">
