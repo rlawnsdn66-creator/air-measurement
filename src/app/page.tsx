@@ -33,6 +33,20 @@ export default function AirMeasurementPage() {
     () => INITIAL_FACILITIES[0]?.id || ""
   );
 
+  const handleUpdateMeasurement = useCallback(
+    (updated: AirSelfMeasurement) => {
+      setMeasurements((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+    },
+    [setMeasurements]
+  );
+
+  const handleDeleteMeasurements = useCallback(
+    (ids: string[]) => {
+      setMeasurements((prev) => prev.filter((m) => !ids.includes(m.id)));
+    },
+    [setMeasurements]
+  );
+
   const handleAddMeasurements = useCallback(
     (newItems: AirSelfMeasurement[]) => {
       setMeasurements((prev) => {
@@ -107,6 +121,8 @@ export default function AirMeasurementPage() {
             selectedId={selectedFacilityId}
             onSelectFacility={setSelectedFacilityId}
             onAddMeasurements={handleAddMeasurements}
+            onUpdateMeasurement={handleUpdateMeasurement}
+            onDeleteMeasurements={handleDeleteMeasurements}
           />
         </TabsContent>
 

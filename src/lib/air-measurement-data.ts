@@ -35,14 +35,10 @@ export interface AirSelfMeasurement {
   value: number;
   unit: string;
   limit: number;
-  agency: string;
   status: "Pass" | "Fail";
   // 배출 측정 상세
   gasVelocity?: number;
   gasTemperature?: number;
-  dataCollectionType?: string;
-  measurementPurpose?: string;
-  measurementMethod?: string;
   // 추가 측정 데이터
   moisture?: number;            // 수분량(%)
   oxygenActual?: number;        // 실측산소농도(%)

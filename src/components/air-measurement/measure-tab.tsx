@@ -20,6 +20,8 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronRight,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
@@ -47,6 +49,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { FacilitySelector } from "./facility-selector";
 import type {
@@ -63,6 +66,8 @@ interface MeasureTabProps {
   selectedId: string;
   onSelectFacility: (id: string) => void;
   onAddMeasurements: (items: AirSelfMeasurement[]) => void;
+  onUpdateMeasurement: (updated: AirSelfMeasurement) => void;
+  onDeleteMeasurements: (ids: string[]) => void;
 }
 
 const BUSINESS_NUMBER = "143-81-19635";
@@ -75,6 +80,8 @@ export function MeasureTab({
   selectedId,
   onSelectFacility,
   onAddMeasurements,
+  onUpdateMeasurement,
+  onDeleteMeasurements,
 }: MeasureTabProps) {
   const safeMs = measurements || [];
   const activeParent =
@@ -94,20 +101,31 @@ export function MeasureTab({
   const [importStatus, setImportStatus] = useState<ImportStatus | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 수정 모달 상태
+  const [editingMeasurement, setEditingMeasurement] = useState<AirSelfMeasurement | null>(null);
+  const [editForm, setEditForm] = useState<Partial<AirSelfMeasurement>>({});
+
+  // 체크박스 선택 상태
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
+  const [bulkEditForm, setBulkEditForm] = useState<Partial<AirSelfMeasurement>>({});
+
   // 조회 테이블 상태
   const currentYear = new Date().getFullYear();
   const [filterYear, setFilterYear] = useState(String(currentYear));
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
-  const [filterPurpose, setFilterPurpose] = useState("전체");
+  const [filterPermitNumber, setFilterPermitNumber] = useState("");
   const [filterExpanded, setFilterExpanded] = useState(true);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [appliedFilters, setAppliedFilters] = useState({
     year: String(currentYear),
     dateFrom: "",
     dateTo: "",
-    purpose: "전체",
+    permitNumber: "",
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // ===== 입력/업로드 로직 =====
 
@@ -123,14 +141,10 @@ export function MeasureTab({
         value: parseFloat(data.value || "0"),
         unit: p === "총탄화수소(THC)" ? "ppm" : "mg/m3",
         limit: parseFloat(data.limit || "20"),
-        agency: "(주)대한환경기술",
         status:
           parseFloat(data.value || "0") <= parseFloat(data.limit || "20")
             ? ("Pass" as const)
             : ("Fail" as const),
-        dataCollectionType: "측정인",
-        measurementPurpose: "제출용",
-        measurementMethod: "대행의뢰",
       }));
     if (newEntries.length > 0) {
       onAddMeasurements(newEntries);
@@ -138,6 +152,71 @@ export function MeasureTab({
       setBatchMeasureForm({});
       toast.success(`${newEntries.length}건의 측정 데이터가 저장되었습니다`);
     }
+  };
+
+  const handleToggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) setSelectedIds(new Set(filteredData.map((r) => r.id)));
+    else setSelectedIds(new Set());
+  };
+
+  const handleDeleteSelected = () => {
+    const count = selectedIds.size;
+    onDeleteMeasurements([...selectedIds]);
+    setSelectedIds(new Set());
+    toast.success(`${count}건이 삭제되었습니다`);
+  };
+
+  const handleEditSelected = () => {
+    if (selectedIds.size === 1) {
+      const m = filteredData.find((r) => r.id === [...selectedIds][0]);
+      if (m) { setEditingMeasurement(m); setEditForm({ ...m }); }
+    } else {
+      setBulkEditForm({});
+      setIsBulkEditOpen(true);
+    }
+  };
+
+  const handleSaveBulkEdit = () => {
+    const count = selectedIds.size;
+    [...selectedIds].forEach((id) => {
+      const m = measurements.find((m) => m.id === id);
+      if (!m) return;
+      onUpdateMeasurement({ ...m, ...bulkEditForm });
+    });
+    setSelectedIds(new Set());
+    setIsBulkEditOpen(false);
+    toast.success(`${count}건이 수정되었습니다`);
+  };
+
+  const handleOpenEdit = (m: AirSelfMeasurement, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingMeasurement(m);
+    setEditForm({ ...m });
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingMeasurement) return;
+    const value = parseFloat(String(editForm.value ?? editingMeasurement.value));
+    const limit = editingMeasurement.limit;
+    const updated: AirSelfMeasurement = {
+      ...editingMeasurement,
+      ...editForm,
+      value,
+      status: value > limit ? "Fail" : "Pass",
+    };
+    onUpdateMeasurement(updated);
+    setEditingMeasurement(null);
+    toast.success("수정되었습니다");
   };
 
   const processImportData = (rows: unknown[][]) => {
@@ -153,11 +232,6 @@ export function MeasureTab({
       if (!cols || cols.length < 20) return;
       const serialInFile = String(cols[1] || "").trim();
       const dateInFile = String(cols[8] || "").trim();
-      // 자료수집구분(9), 용도(10), 측정방법(11), 기관명(12)
-      const dataCollectionType = String(cols[9] || "측정인").trim();
-      const measurementPurpose = String(cols[10] || "제출용").trim();
-      const measurementMethod = String(cols[11] || "대행의뢰").trim();
-      const agency = String(cols[12] || "").trim();
       // 배출가스 속도(13), 온도(14), 수분량(15), 산소농도(16,17), 유량(18)
       const gasVelocity = parseFloat(String(cols[13] || "0")) || undefined;
       const gasTemperature = parseFloat(String(cols[14] || "0")) || undefined;
@@ -242,13 +316,9 @@ export function MeasureTab({
           value: concentration,
           unit,
           limit: sysLimit,
-          agency: agency || "대행의뢰",
           status: isExceeded ? "Fail" : "Pass",
           gasVelocity,
           gasTemperature,
-          dataCollectionType,
-          measurementPurpose,
-          measurementMethod,
           moisture,
           oxygenActual,
           oxygenStandard,
@@ -355,21 +425,23 @@ export function MeasureTab({
       year: filterYear,
       dateFrom: filterDateFrom,
       dateTo: filterDateTo,
-      purpose: filterPurpose,
+      permitNumber: filterPermitNumber,
     });
+    setCurrentPage(1);
   };
 
   const handleResetFilter = () => {
     setFilterYear(String(currentYear));
     setFilterDateFrom("");
     setFilterDateTo("");
-    setFilterPurpose("전체");
+    setFilterPermitNumber("");
     setAppliedFilters({
       year: String(currentYear),
       dateFrom: "",
       dateTo: "",
-      purpose: "전체",
+      permitNumber: "",
     });
+    setCurrentPage(1);
   };
 
   const tableData = useMemo(() => {
@@ -395,9 +467,8 @@ export function MeasureTab({
         if (appliedFilters.dateTo && row.date > appliedFilters.dateTo)
           return false;
         if (
-          appliedFilters.purpose !== "전체" &&
-          row.measurementPurpose &&
-          row.measurementPurpose !== appliedFilters.purpose
+          appliedFilters.permitNumber &&
+          row.facility.permitNumber !== appliedFilters.permitNumber
         )
           return false;
         return true;
@@ -423,10 +494,6 @@ export function MeasureTab({
       "배출구높이(m)": row.facility.outletHeight || "",
       "배출구단면적(㎡)": row.facility.outletArea || "",
       측정일자: row.date,
-      "자료수집구분": row.dataCollectionType || "측정인",
-      자가측정용도구분: row.measurementPurpose || "제출용",
-      측정방법: row.measurementMethod || "대행의뢰",
-      오염물질검사기관명: row.agency || "",
       "배출가스속도(m/s)": row.gasVelocity ?? "",
       "배출가스온도(°C)": row.gasTemperature ?? "",
       "수분량(%)": row.moisture ?? "",
@@ -465,6 +532,16 @@ export function MeasureTab({
 
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+  const pagedData = filteredData.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const permitNumberOptions = useMemo(() => {
+    const nums = facilities
+      .map((f) => f.permitNumber)
+      .filter((v): v is string => !!v);
+    return [...new Set(nums)].sort();
+  }, [facilities]);
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold">자가측정사항</h2>
@@ -472,14 +549,11 @@ export function MeasureTab({
       {/* 필터 */}
       <div className="border rounded-lg bg-white">
         <div className="p-4 sm:p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{BUSINESS_NAME}</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
             <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Label className="w-24 text-xs font-semibold text-muted-foreground shrink-0 bg-muted px-2 py-1.5 rounded text-center">
-                  사업자등록번호
-                </Label>
-                <span className="text-sm">{BUSINESS_NUMBER}</span>
-              </div>
               <div className="flex items-center gap-3">
                 <Label className="w-24 text-xs font-semibold text-muted-foreground shrink-0 bg-muted px-2 py-1.5 rounded text-center">
                   조사년도
@@ -497,18 +571,9 @@ export function MeasureTab({
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Label className="w-20 text-xs font-semibold text-muted-foreground shrink-0 bg-muted px-2 py-1.5 rounded text-center">
-                  구분번호
-                </Label>
-                <span className="text-sm">{DISTRICT_NUMBER}</span>
-              </div>
               {filterExpanded && (
                 <div className="flex items-center gap-3">
-                  <Label className="w-20 text-xs font-semibold text-muted-foreground shrink-0 bg-muted px-2 py-1.5 rounded text-center">
+                  <Label className="w-24 text-xs font-semibold text-muted-foreground shrink-0 bg-muted px-2 py-1.5 rounded text-center">
                     측정기간
                   </Label>
                   <div className="flex items-center gap-1.5">
@@ -531,31 +596,30 @@ export function MeasureTab({
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Label className="w-20 text-xs font-semibold text-muted-foreground shrink-0 bg-muted px-2 py-1.5 rounded text-center">
-                  사업장명
-                </Label>
-                <span className="text-sm font-medium">{BUSINESS_NAME}</span>
-              </div>
               {filterExpanded && (
-                <div className="flex items-center gap-3">
-                  <Label className="w-20 text-xs font-semibold text-muted-foreground shrink-0 bg-muted px-2 py-1.5 rounded text-center">
-                    자가측정용도
-                  </Label>
-                  <Select
-                    value={filterPurpose}
-                    onValueChange={(v) => setFilterPurpose(v ?? "전체")}
-                  >
-                    <SelectTrigger className="w-32 h-8 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="전체">전체</SelectItem>
-                      <SelectItem value="제출용">제출용</SelectItem>
-                      <SelectItem value="자체보관용">자체보관용</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <>
+                  <div className="flex items-center gap-3">
+                    <Label className="w-24 text-xs font-semibold text-muted-foreground shrink-0 bg-muted px-2 py-1.5 rounded text-center">
+                      허가증상<br />배출구번호
+                    </Label>
+                    <Select
+                      value={filterPermitNumber}
+                      onValueChange={(v) => setFilterPermitNumber(v ?? "")}
+                    >
+                      <SelectTrigger className="w-96 h-auto min-h-8 text-sm whitespace-normal text-left">
+                        <SelectValue placeholder="전체" />
+                      </SelectTrigger>
+                      <SelectContent className="max-w-[420px]">
+                        <SelectItem value="">전체</SelectItem>
+                        {permitNumberOptions.map((p) => (
+                          <SelectItem key={p} value={p} className="whitespace-normal break-words">
+                            {p}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -603,8 +667,35 @@ export function MeasureTab({
             {filteredData.length}
           </span>
           건이 조회되었습니다.
+          {selectedIds.size > 0 && (
+            <span className="ml-2 text-primary font-semibold">
+              ({selectedIds.size}건 선택됨)
+            </span>
+          )}
         </p>
         <div className="flex gap-2">
+          {selectedIds.size > 0 && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-primary text-primary hover:bg-primary/10"
+                onClick={handleEditSelected}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                {selectedIds.size === 1 ? "수정" : "일괄 수정"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-destructive text-destructive hover:bg-destructive/10"
+                onClick={handleDeleteSelected}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                삭제 ({selectedIds.size})
+              </Button>
+            </>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -613,14 +704,6 @@ export function MeasureTab({
           >
             <FileUp className="h-3.5 w-3.5" />
             파일 업로드
-          </Button>
-          <Button
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setIsMeasurementModalOpen(true)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            데이터 직접 입력
           </Button>
           <Button
             variant="outline"
@@ -640,6 +723,12 @@ export function MeasureTab({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/70">
+                <TableHead className="w-10 text-center">
+                  <Checkbox
+                    checked={filteredData.length > 0 && selectedIds.size === filteredData.length}
+                    onCheckedChange={(v) => handleSelectAll(!!v)}
+                  />
+                </TableHead>
                 <TableHead className="w-10 text-center text-xs font-semibold whitespace-nowrap">
                   &nbsp;
                 </TableHead>
@@ -651,7 +740,7 @@ export function MeasureTab({
                   <br />
                   일련번호
                 </TableHead>
-                <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
+                <TableHead className="text-center text-xs font-semibold whitespace-nowrap min-w-[220px]">
                   허가증상
                   <br />
                   배출구번호
@@ -676,24 +765,6 @@ export function MeasureTab({
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
                   측정일자
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
-                  자료수집구분
-                  <br />
-                  (전자/TMS/측정인)
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
-                  자가측정
-                  <br />
-                  용도구분
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
-                  측정방법
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
-                  오염물질
-                  <br />
-                  검사기관명
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold whitespace-nowrap">
                   배출가스
@@ -723,14 +794,14 @@ export function MeasureTab({
               {filteredData.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={20}
+                    colSpan={18}
                     className="h-32 text-center text-muted-foreground"
                   >
                     조회된 데이터가 없습니다
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredData.map((row, idx) => {
+                pagedData.map((row, idx) => {
                   const isExpanded = expandedRow === row.id;
                   return (
                     <TableRow
@@ -738,12 +809,21 @@ export function MeasureTab({
                       className={cn(
                         "hover:bg-blue-50/50 cursor-pointer text-xs",
                         isExpanded && "bg-blue-50/70",
-                        idx === 0 && "bg-indigo-50/50"
+                        selectedIds.has(row.id) && "bg-blue-50",
+                        idx === 0 && !selectedIds.has(row.id) && "bg-indigo-50/50"
                       )}
                       onClick={() =>
                         setExpandedRow(isExpanded ? null : row.id)
                       }
                     >
+                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(row.id)}
+                          onCheckedChange={() =>
+                            handleToggleSelect(row.id, { stopPropagation: () => {} } as React.MouseEvent)
+                          }
+                        />
+                      </TableCell>
                       <TableCell className="text-center text-muted-foreground">
                         {isExpanded ? (
                           <ChevronDown className="h-3.5 w-3.5 mx-auto" />
@@ -757,7 +837,7 @@ export function MeasureTab({
                       <TableCell className="text-center font-medium">
                         {row.facility.serialNumber}
                       </TableCell>
-                      <TableCell className="text-center text-xs max-w-[160px] truncate">
+                      <TableCell className="text-center text-xs min-w-[220px]">
                         {row.facility.permitNumber || "-"}
                       </TableCell>
                       <TableCell className="text-center text-xs max-w-[160px] truncate">
@@ -777,18 +857,6 @@ export function MeasureTab({
                       </TableCell>
                       <TableCell className="text-center whitespace-nowrap">
                         {row.date}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {row.dataCollectionType || "측정인"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {row.measurementPurpose || "제출용"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {row.measurementMethod || "대행의뢰"}
-                      </TableCell>
-                      <TableCell className="text-center text-xs max-w-[120px] truncate">
-                        {row.agency || "-"}
                       </TableCell>
                       <TableCell className="text-center">
                         {row.gasVelocity ?? "-"}
@@ -834,6 +902,154 @@ export function MeasureTab({
           </Table>
         </div>
       </div>
+
+      {/* 페이지네이션 */}
+      {filteredData.length > 0 && (
+        <div className="flex flex-col items-center gap-2 text-sm">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(1)}
+            >
+              «
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => p - 1)}
+            >
+              ‹
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+              .reduce<(number | "...")[]>((acc, p, i, arr) => {
+                if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === "..." ? (
+                  <span key={`ellipsis-${i}`} className="px-1 text-muted-foreground">…</span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={currentPage === p ? "default" : "outline"}
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setCurrentPage(p as number)}
+                  >
+                    {p}
+                  </Button>
+                )
+              )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => p + 1)}
+            >
+              ›
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(totalPages)}
+            >
+              »
+            </Button>
+          </div>
+          <span className="text-muted-foreground">
+            {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredData.length)} / {filteredData.length}건
+          </span>
+        </div>
+      )}
+
+      {/* =============== 일괄 수정 모달 =============== */}
+      <Dialog open={isBulkEditOpen} onOpenChange={setIsBulkEditOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-primary" />
+              일괄 수정 ({selectedIds.size}건)
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">입력한 항목만 선택된 데이터에 일괄 적용됩니다.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">측정일자</Label>
+              <Input type="date" value={bulkEditForm.date ?? ""} onChange={(e) => setBulkEditForm(f => ({ ...f, date: e.target.value || undefined }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">환경기술인명</Label>
+              <Input value={bulkEditForm.environmentEngineer ?? ""} onChange={(e) => setBulkEditForm(f => ({ ...f, environmentEngineer: e.target.value || undefined }))} placeholder="이름 입력" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setIsBulkEditOpen(false)}>취소</Button>
+            <Button onClick={handleSaveBulkEdit}>
+              <Save className="h-4 w-4 mr-1" />
+              일괄 저장
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* =============== 수정 모달 =============== */}
+      <Dialog open={!!editingMeasurement} onOpenChange={(open) => { if (!open) setEditingMeasurement(null); }}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-primary" />
+              측정 데이터 수정
+            </DialogTitle>
+          </DialogHeader>
+          {editingMeasurement && (
+            <div className="space-y-4">
+              <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">
+                <p><span className="text-muted-foreground">시설:</span> {facilities.find(f => f.id === editingMeasurement.facilityId)?.name} (S/N: {facilities.find(f => f.id === editingMeasurement.facilityId)?.serialNumber})</p>
+                <p><span className="text-muted-foreground">오염물질:</span> {editingMeasurement.pollutant} | <span className="text-muted-foreground">법적기준:</span> {editingMeasurement.limit} {editingMeasurement.unit}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">측정일자</Label>
+                  <Input type="date" value={editForm.date ?? ""} onChange={(e) => setEditForm(f => ({ ...f, date: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">측정값 ({editingMeasurement.unit})</Label>
+                  <Input type="number" value={editForm.value ?? ""} onChange={(e) => setEditForm(f => ({ ...f, value: parseFloat(e.target.value) }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">배출가스속도 (m/s)</Label>
+                  <Input type="number" value={editForm.gasVelocity ?? ""} onChange={(e) => setEditForm(f => ({ ...f, gasVelocity: parseFloat(e.target.value) || undefined }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">배출가스온도 (°C)</Label>
+                  <Input type="number" value={editForm.gasTemperature ?? ""} onChange={(e) => setEditForm(f => ({ ...f, gasTemperature: parseFloat(e.target.value) || undefined }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">환경기술인명</Label>
+                  <Input value={editForm.environmentEngineer ?? ""} onChange={(e) => setEditForm(f => ({ ...f, environmentEngineer: e.target.value || undefined }))} placeholder="이름 입력" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setEditingMeasurement(null)}>취소</Button>
+                <Button onClick={handleSaveEdit}>
+                  <Save className="h-4 w-4 mr-1" />
+                  저장
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* =============== 직접 입력 모달 =============== */}
       <Dialog
