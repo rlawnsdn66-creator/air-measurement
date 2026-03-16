@@ -167,7 +167,13 @@ export function StatusTab({
     }[] = [];
 
     facilities.forEach((f) => {
-      (f.pollutants || []).forEach((pollutant) => {
+      // pollutants 배열 + pollutantCycles 키 + pollutantLimits 키 합산 (데이터 불일치 대비)
+      const allPollutants = Array.from(new Set([
+        ...(f.pollutants || []),
+        ...Object.keys(f.pollutantCycles || {}),
+        ...Object.keys(f.pollutantLimits || {}),
+      ]));
+      allPollutants.forEach((pollutant) => {
         const cycle = f.pollutantCycles?.[pollutant] || f.measurementCycle;
         const pollutantMs = safeMs
           .filter((m) => m.facilityId === f.id && m.pollutant === pollutant)
