@@ -163,7 +163,7 @@ export function StatusTab({
       facilityId: string; facilityName: string; serialNumber: string;
       pollutant: string; cycle: string; lastDate: string | null;
       nextDate: string | null; remainingDays: number | null;
-      status: "초과" | "임박" | "정상" | "미측정";
+      status: "초과" | "임박" | "측정완료" | "정상" | "미측정";
     }[] = [];
 
     facilities.forEach((f) => {
@@ -196,7 +196,7 @@ export function StatusTab({
           dayAfter.setDate(dayAfter.getDate() + 1);
           const { end: nextEnd } = getPeriodBoundaries(cycle, dayAfter);
           const remaining = Math.ceil((nextEnd.getTime() - today.getTime()) / 86400000);
-          rows.push({ facilityId: f.id, facilityName: f.name, serialNumber: f.serialNumber, pollutant, cycle, lastDate: lastMs.date, nextDate: nextEnd.toISOString().split("T")[0], remainingDays: remaining, status: "정상" });
+          rows.push({ facilityId: f.id, facilityName: f.name, serialNumber: f.serialNumber, pollutant, cycle, lastDate: lastMs.date, nextDate: nextEnd.toISOString().split("T")[0], remainingDays: remaining, status: "측정완료" });
           return;
         }
 
@@ -213,7 +213,7 @@ export function StatusTab({
         } else {
           // 이전 기간 측정 완료, 현재 기간 미측정 → 임박 or 정상
           const remaining = Math.ceil((currEnd.getTime() - today.getTime()) / 86400000);
-          const status = remaining <= getImminentDays(cycle) ? "임박" : "정상";
+          const status: "임박" | "정상" = remaining <= getImminentDays(cycle) ? "임박" : "정상";
           rows.push({ facilityId: f.id, facilityName: f.name, serialNumber: f.serialNumber, pollutant, cycle, lastDate: lastMs.date, nextDate: currEnd.toISOString().split("T")[0], remainingDays: remaining, status });
         }
       });
@@ -229,6 +229,7 @@ export function StatusTab({
   const cycleSummary = useMemo(() => ({
     초과: cycleRows.filter((r) => r.status === "초과").length,
     임박: cycleRows.filter((r) => r.status === "임박").length,
+    측정완료: cycleRows.filter((r) => r.status === "측정완료").length,
     정상: cycleRows.filter((r) => r.status === "정상").length,
     미측정: cycleRows.filter((r) => r.status === "미측정").length,
   }), [cycleRows]);
@@ -473,10 +474,16 @@ export function StatusTab({
                 임박 {cycleSummary.임박}
               </span>
               <span
-                className="cursor-pointer text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-semibold"
+                className="cursor-pointer text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold"
+                onClick={() => setCycleStatusFilter(cycleStatusFilter === "측정완료" ? "전체" : "측정완료")}
+              >
+                측정완료 {cycleSummary.측정완료}
+              </span>
+              <span
+                className="cursor-pointer text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold"
                 onClick={() => setCycleStatusFilter(cycleStatusFilter === "정상" ? "전체" : "정상")}
               >
-                정상 {cycleSummary.정상}
+                대기중 {cycleSummary.정상}
               </span>
               <span
                 className="cursor-pointer text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 font-semibold"
@@ -485,14 +492,15 @@ export function StatusTab({
                 미측정 {cycleSummary.미측정}
               </span>
               <Select value={cycleStatusFilter} onValueChange={(v) => setCycleStatusFilter(v ?? "전체")}>
-                <SelectTrigger className="h-8 w-28 text-xs">
+                <SelectTrigger className="h-8 w-32 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="전체">전체</SelectItem>
                   <SelectItem value="초과">초과</SelectItem>
                   <SelectItem value="임박">임박</SelectItem>
-                  <SelectItem value="정상">정상</SelectItem>
+                  <SelectItem value="측정완료">측정완료</SelectItem>
+                  <SelectItem value="정상">대기중</SelectItem>
                   <SelectItem value="미측정">미측정</SelectItem>
                 </SelectContent>
               </Select>
@@ -563,11 +571,12 @@ export function StatusTab({
                               "text-[10px] px-1.5 py-0.5",
                               row.status === "초과" && "bg-red-100 text-red-700 hover:bg-red-100",
                               row.status === "임박" && "bg-orange-100 text-orange-700 hover:bg-orange-100",
-                              row.status === "정상" && "bg-green-100 text-green-700 hover:bg-green-100",
+                              row.status === "측정완료" && "bg-blue-100 text-blue-700 hover:bg-blue-100",
+                              row.status === "정상" && "bg-slate-100 text-slate-600 hover:bg-slate-100",
                               row.status === "미측정" && "bg-gray-100 text-gray-600 hover:bg-gray-100"
                             )}
                           >
-                            {row.status}
+                            {row.status === "정상" ? "대기중" : row.status}
                           </Badge>
                         </TableCell>
                       </TableRow>
