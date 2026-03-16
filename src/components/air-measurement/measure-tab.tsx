@@ -449,7 +449,18 @@ export function MeasureTab({
       .map((m) => {
         const facility = facilities.find((f) => f.id === m.facilityId);
         if (!facility) return null;
-        return { ...m, year: new Date(m.date).getFullYear(), facility };
+        // 시설의 현재 법적허용기준으로 limit·status 재계산
+        const currentLimit = facility.pollutantLimits?.[m.pollutant] !== undefined
+          ? parseFloat(facility.pollutantLimits[m.pollutant])
+          : m.limit;
+        const currentStatus: "Pass" | "Fail" = m.value > currentLimit ? "Fail" : "Pass";
+        return {
+          ...m,
+          limit: currentLimit,
+          status: currentStatus,
+          year: new Date(m.date).getFullYear(),
+          facility,
+        };
       })
       .filter(Boolean) as (AirSelfMeasurement & {
       year: number;
